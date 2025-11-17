@@ -1,39 +1,22 @@
 /*global WildRydes _config*/
-
 var WildRydes = window.WildRydes || {};
-WildRydes.map = WildRydes.map || {};
+WildRydes.map = WildRydes.Map();
 
 (function rideScopeWrapper($) {
-    var authToken;
-    WildRydes.authToken.then(function setAuthToken(token) {
-        if (token) {
-            authToken = token;
-        } else {
-            window.location.href = '/signin.html';
-        }
-    }).catch(function handleTokenError(error) {
-        alert(error);
-        window.location.href = '/signin.html';
-    });
     function requestUnicorn(pickupLocation) {
         $.ajax({
             method: 'POST',
             url: _config.api.invokeUrl + '/ride',
-            headers: {
-                Authorization: authToken
-            },
+            headers: {}, // No auth header needed
             data: JSON.stringify({
-                PickupLocation: {
-                    Latitude: pickupLocation.latitude,
-                    Longitude: pickupLocation.longitude
-                }
+                PickupLocation: pickupLocation
             }),
             contentType: 'application/json',
             success: completeRequest,
             error: function ajaxError(jqXHR, textStatus, errorThrown) {
                 console.error('Error requesting ride: ', textStatus, ', Details: ', errorThrown);
                 console.error('Response: ', jqXHR.responseText);
-                alert('An error occured when requesting your unicorn:\n' + jqXHR.responseText);
+                alert('An error occurred when requesting your unicorn:\n' + jqXHR.responseText);
             }
         });
     }
@@ -46,35 +29,19 @@ WildRydes.map = WildRydes.map || {};
         pronoun = unicorn.Gender === 'Male' ? 'his' : 'her';
         displayUpdate(unicorn.Name + ', your ' + unicorn.Color + ' unicorn, is on ' + pronoun + ' way.');
         animateArrival(function animateCallback() {
-            displayUpdate(unicorn.Name + ' has arrived. Giddy up!');
+            displayUpdate('Set your pickup location.');
             WildRydes.map.unsetLocation();
             $('#request').prop('disabled', 'disabled');
             $('#request').text('Set Pickup');
         });
     }
 
-    // Register click handler for #request button
+    // Register click handler immediately
     $(function onDocReady() {
         $('#request').click(handleRequestClick);
-        $(WildRydes.map).on('pickupChange', handlePickupChanged);
-
-        WildRydes.authToken.then(function updateAuthMessage(token) {
-            if (token) {
-                displayUpdate('You are authenticated. Click to see your <a href="#authTokenModal" data-toggle="modal">auth token</a>.');
-                $('.authToken').text(token);
-            }
-        });
-
-        if (!_config.api.invokeUrl) {
-            $('#noApiMessage').show();
-        }
+        $('#request').prop('disabled', false); // Enable button
+        WildRydes.authToken = Promise.resolve("fake-token");
     });
-
-    function handlePickupChanged() {
-        var requestButton = $('#request');
-        requestButton.text('Request Unicorn');
-        requestButton.prop('disabled', false);
-    }
 
     function handleRequestClick(event) {
         var pickupLocation = WildRydes.map.selectedPoint;
@@ -85,23 +52,20 @@ WildRydes.map = WildRydes.map || {};
     function animateArrival(callback) {
         var dest = WildRydes.map.selectedPoint;
         var origin = {};
-
         if (dest.latitude > WildRydes.map.center.latitude) {
-            origin.latitude = WildRydes.map.extent.minLat;
+            origin.latitude = dest.latitude - 0.01;
         } else {
-            origin.latitude = WildRydes.map.extent.maxLat;
+            origin.latitude = dest.latitude + 0.01;
         }
-
         if (dest.longitude > WildRydes.map.center.longitude) {
-            origin.longitude = WildRydes.map.extent.minLng;
+            origin.longitude = dest.longitude - 0.01;
         } else {
-            origin.longitude = WildRydes.map.extent.maxLng;
+            origin.longitude = dest.longitude + 0.01;
         }
-
         WildRydes.map.animate(origin, dest, callback);
     }
 
     function displayUpdate(text) {
-        $('#updates').append($('<li>' + text + '</li>'));
+        $('#updates').text(text);
     }
 }(jQuery));
